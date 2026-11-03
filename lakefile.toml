@@ -1,0 +1,17 @@
+name = "Averroes"
+version = "0.1.0"
+defaultTargets = ["averroes"]
+
+[[lean_lib]]
+name = "Averroes"
+
+[[lean_exe]]
+name = "averroes"
+root = "Main"
+
+# Mathlib transitively provides batteries, aesop, Qq, etc. Do not require them
+# separately, or their versions can drift from what Mathlib was built against.
+[[require]]
+name = "mathlib"
+scope = "leanprover-community"
+rev = "v4.35.0-rc3"
