@@ -4,5 +4,5 @@
 import Averroes.Lexer
 import Averroes.Parser
 import Averroes.Proof
-import Averroes.Diagnostic
+import Averroes.Diagnostics
 import Batteries
