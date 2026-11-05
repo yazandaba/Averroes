@@ -246,7 +246,7 @@ theorem LexValidInteger
 theorem LexValidFloat
   (text intPart mantissa rest: List Char) (line column: Nat)
   (hintDigits: ∀ n ∈ intPart, Char.isDigit n) (hmantissaDigits: ∀ n ∈ mantissa, Char.isDigit n)
-  (hintNonEmpty: intPart ≠ []) (hmantissaNonEmpty : mantissa ≠ []) (htext : text = intPart ++ ['.'] ++ mantissa ++ rest)
+  (hmantissaNonEmpty : mantissa ≠ []) (htext : text = intPart ++ ['.'] ++ mantissa ++ rest)
   (hrestNoDigit: !rest[0]?.any Char.isDigit ):
   let float :=  intPart ++ ['.'] ++ mantissa
   LexNumber text line column = Token.Create TokenKind.Number (SourceLocation.Create (SourcePosition.Create line column) (SourcePosition.Create line (column + float.length))) (String.ofList float) := by
