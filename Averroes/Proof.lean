@@ -467,6 +467,12 @@ theorem LexIsSound (text: List Char) (line column: Nat) :
 --============================       Parsing Proofs     ============================
 --============================                          ============================
 
+private def loc : SourceLocation := SourceLocation.Create ⟨0,0⟩ ⟨0,1⟩
+private def lp  : Token := Token.Create .LeftParnthesis   loc "("
+private def rp  : Token := Token.Create .RightParenthesis loc ")"
+private def eof : Token := Token.Create .Eof              loc "\x00"
+private def bad : Token := Token.Create .Invalid          loc "#"
+
 theorem ParseAtomsProgress {tokens : List Token} (hnonEmpty : tokens ≠ []) :
     (ParseAtoms tokens).2.length < tokens.length := by
   have hconsume := ParseAtomsConsumes tokens
@@ -478,6 +484,11 @@ theorem ParseAtomsNonEmptyInputHasAtoms
   (htokens: tokens = rest ++ [finish]):
   (ParseAtoms tokens).fst ≠ [] := by
   fun_induction ParseAtoms tokens <;> simp_all
+
+example : ∃ (head : LispAtomSyntax) (tail : List LispAtomSyntax) (sent : LispSentinelSyntax),
+  ParseAtoms ([] ++ [rp]) = (head :: tail, []) ∧
+  (head :: tail).getLast (by simp) = .Sent sent ∧ sent.SentinelToken = rp :=
+  ⟨.Sent ⟨rp, [], none⟩, [], ⟨rp, [], none⟩, by simp [ParseAtoms, rp], rfl, rfl⟩
 
 -- head::tail is used instead of single atoms to avoid providing atoms ≠ [] hypothesis
 -- the empty case is proofed later
@@ -517,6 +528,11 @@ theorem ParseAtomsEmptyInput :
   ParseAtoms [] = ([], []) := by
   simp [ParseAtoms]
 
+-- ParseAtomsClosedListWithSiblings   (input: `)`)
+example : ∃ (rem : List Token) (head : LispAtomSyntax) (tail : List LispAtomSyntax) (sent : LispSentinelSyntax),
+    ParseAtoms [rp] = (head :: tail, rem) ∧ (head :: tail).getLast (by simp) = .Sent sent :=
+  ⟨[], .Sent ⟨rp, [], none⟩, [], ⟨rp, [], none⟩, by simp [ParseAtoms, rp], rfl⟩
+
 theorem ParseAtomsClosedListWithSiblings
   (start : Token) (rest rem : List Token)
   (head : LispAtomSyntax) (tail : List LispAtomSyntax) (sent : LispSentinelSyntax)
@@ -533,6 +549,10 @@ theorem ParseAtomsClosedListWithSiblings
     } :: sibling, siblingRem) := by
   simp [ParseAtoms, hstart, hparse, hlast]
 
+-- ParseAtomsListWithoutAtoms   (input: empty)
+example : ∃ (rest rem : List Token), ParseAtoms rest = ([], rem) :=
+  ⟨[], [], by simp [ParseAtoms]⟩
+
 theorem ParseAtomsListWithoutAtoms
   (start : Token) (rest rem : List Token)
   (hstart : start.Kind = TokenKind.LeftParnthesis)
@@ -545,6 +565,12 @@ theorem ParseAtomsListWithoutAtoms
       Atoms := []
     }], rem) := by
   simp [ParseAtoms, hstart, hparse]
+
+-- ParseAtomsListWithoutClosingParen   (input: EOF)
+example : ∃ (rem : List Token) (head : LispAtomSyntax) (tail : List LispAtomSyntax),
+    ParseAtoms [eof] = (head :: tail, rem) ∧
+    ∀ sent, (head :: tail).getLast (by simp) ≠ .Sent sent :=
+  ⟨[], .Leaf { Atom := eof }, [], by simp [ParseAtoms, eof], by intro s; simp⟩
 
 theorem ParseAtomsListWithoutClosingParen
   (start : Token) (rest rem : List Token)
@@ -606,6 +632,10 @@ theorem ParseAtomsOperator
 
 -----------------   Fragment Parsing Proofs   -----------------
 
+-- ParseAtomsFragmentWithoutAtom   (input: empty)
+example : ∃ (rest rem : List Token), ParseAtoms rest = ([], rem) :=
+  ⟨[], [], by simp [ParseAtoms]⟩
+
 theorem ParseAtomsFragmentWithoutAtom
   (fragment : Token) (rest rem : List Token)
   (hkind : fragment.Kind = TokenKind.Fragment)
@@ -613,6 +643,10 @@ theorem ParseAtomsFragmentWithoutAtom
   ParseAtoms (fragment :: rest) =
     ([.Error { Diagnostic := ParsingInvalidStateError fragment.Location }], rem) := by
   simp [ParseAtoms, hkind, hparse]
+
+-- ParseAtomsFragmentBeforeLeaf   (input: EOF)
+example : ∃ rem atom tail, ParseAtoms [eof] = (.Leaf atom :: tail, rem) := by
+  simp [ParseAtoms, eof]
 
 theorem ParseAtomsFragmentBeforeLeaf
   (fragment : Token) (rest rem : List Token)
@@ -623,6 +657,10 @@ theorem ParseAtomsFragmentBeforeLeaf
     (.Leaf { atom with Fragments := { Fragment := fragment } :: atom.Fragments } :: tail, rem) := by
   simp [ParseAtoms, hkind, hparse]
 
+-- ParseAtomsFragmentBeforeList   (input: `(`)
+example : ∃ rem list tail, ParseAtoms [lp] = (.List list :: tail, rem) := by
+  simp [ParseAtoms, lp]
+
 theorem ParseAtomsFragmentBeforeList
   (fragment : Token) (rest rem : List Token)
   (list : LispListSyntax) (tail : List LispAtomSyntax)
@@ -632,6 +670,10 @@ theorem ParseAtomsFragmentBeforeList
     (.List { list with Fragments := { Fragment := fragment } :: list.Fragments } :: tail, rem) := by
   simp [ParseAtoms, hkind, hparse]
 
+-- ParseAtomsFragmentBeforeSentinel   (input: `)`)
+example : ∃ rem sent tail, ParseAtoms [rp] = (.Sent sent :: tail, rem) := by
+  simp [ParseAtoms, rp]
+
 theorem ParseAtomsFragmentBeforeSentinel
   (fragment : Token) (rest rem : List Token)
   (sent : LispSentinelSyntax) (tail : List LispAtomSyntax)
@@ -640,6 +682,10 @@ theorem ParseAtomsFragmentBeforeSentinel
   ParseAtoms (fragment :: rest) =
     (.Sent { sent with Fragments := { Fragment := fragment } :: sent.Fragments } :: tail, rem) := by
   simp [ParseAtoms, hkind, hparse]
+
+-- ParseAtomsFragmentBeforeError   (input: invalid token)
+example : ∃ rem err tail, ParseAtoms [bad] = (.Error err :: tail, rem) := by
+  simp [ParseAtoms, bad]
 
 theorem ParseAtomsFragmentBeforeError
   (fragment : Token) (rest rem : List Token)
@@ -677,6 +723,11 @@ theorem ParseTopWithoutAtoms
   ParseTop (token :: rest) = [.Error { Diagnostic := EmptyProgramError }] := by
   simp [ParseTop, hparse]
 
+-- ParseTopWithStrayRightParen   (input: `)`)
+example : ∃ program rem sent, ParseAtoms [rp] = (program, rem) ∧
+    program.getLast? = some (.Sent sent) := by
+  simp [ParseAtoms, rp]
+
 theorem ParseTopWithStrayRightParen
   (token : Token) (rest rem : List Token)
   (program : List LispAtomSyntax) (sent : LispSentinelSyntax)
@@ -688,6 +739,11 @@ theorem ParseTopWithStrayRightParen
       ParseTop rem := by
   simp [ParseTop, hparse, hlast]
 
+-- ParseTopWithLeaf   (input: EOF)
+example : ∃ program rem atom, ParseAtoms [eof] = (program, rem) ∧
+    program.getLast? = some (.Leaf atom) := by
+  simp [ParseAtoms, eof]
+
 theorem ParseTopWithLeaf
   (token : Token) (rest rem : List Token)
   (program : List LispAtomSyntax) (atom : LispLeafAtomSyntax)
@@ -696,6 +752,11 @@ theorem ParseTopWithLeaf
   ParseTop (token :: rest) = program := by
   simp [ParseTop, hparse, hlast]
 
+-- ParseTopWithList   (input: `(`)
+example : ∃ program rem list, ParseAtoms [lp] = (program, rem) ∧
+    program.getLast? = some (.List list) := by
+  simp [ParseAtoms, lp]
+
 theorem ParseTopWithList
   (token : Token) (rest rem : List Token)
   (program : List LispAtomSyntax) (list : LispListSyntax)
@@ -703,6 +764,11 @@ theorem ParseTopWithList
   (hlast : program.getLast? = some (.List list)) :
   ParseTop (token :: rest) = program := by
   simp [ParseTop, hparse, hlast]
+
+-- ParseTopWithError   (input: invalid token)
+example : ∃ program rem err, ParseAtoms [bad] = (program, rem) ∧
+    program.getLast? = some (.Error err) := by
+  simp [ParseAtoms, bad]
 
 theorem ParseTopWithError
   (token : Token) (rest rem : List Token)
